@@ -18,7 +18,12 @@ sudo apt install build-essential qemu gcc binutils make gdb
 git clone <URL-do-repositório>
 cd Projeto_Implementacao_Sistemas_Operacionais
 ```
+## Adicionando PintOS ao Path
 
+```bash
+cd utils
+echo "export PATH=\$PATH:$(pwd)" | sudo tee -a /home/lucas/.bashrc
+```
 ## Compilando o PintOS
 
 Acesse o diretório do projeto e execute:
@@ -35,7 +40,7 @@ Para executar um teste ou o kernel:
 
 ```bash
 cd pintos/src/threads/build
-pintos --qemu -- run alarm-multiple
+pintos --qemu --gdb -- run alarm-multiple
 ```
 
 Substitua `alarm-multiple` pelo teste desejado.
