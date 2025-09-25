@@ -22,7 +22,7 @@ cd Projeto_Implementacao_Sistemas_Operacionais
 
 ```bash
 cd utils
-echo "export PATH=\$PATH:$(pwd)" | sudo tee -a /home/lucas/.bashrc
+echo "PATH=\$PATH:$(pwd)" | sudo tee -a /home/$(whoami)/.bashrc
 ```
 ## Compilando o PintOS
 
