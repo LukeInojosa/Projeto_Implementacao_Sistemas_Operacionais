@@ -24,6 +24,10 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+/* List of processes in THREAD_BLOCKED state, that is, processes
+   that are blocked and should not be scheduled to run. */
+static struct list blocked_list;
+
 /* List of all processes.  Processes are added to this list
    when they are first scheduled and removed when they exit. */
 static struct list all_list;
@@ -91,6 +95,7 @@ thread_init (void)
 
   lock_init (&tid_lock);
   list_init (&ready_list);
+  list_init (&blocked_list);
   list_init (&all_list);
 
   /* Set up a thread structure for the running thread. */
@@ -240,6 +245,78 @@ thread_unblock (struct thread *t)
   list_push_back (&ready_list, &t->elem);
   t->status = THREAD_READY;
   intr_set_level (old_level);
+}
+
+/**
+ * Compares the wake-up times of two threads.
+ *
+ * This function is intended to be used as a comparator for sorting or ordering
+ * thread list elements based on their wake-up time. It retrieves the thread
+ * structures from the provided list elements and returns true if the first
+ * thread's wake-up time is less than the second's.
+ *
+ * @param a Pointer to the first list element (struct list_elem).
+ * @param b Pointer to the second list element (struct list_elem).
+ * @param aux UNUSED parameter, present for compatibility with comparator signature.
+ * @return true if the wake-up time of thread 'a' is less than that of thread 'b', false otherwise.
+ */
+static bool
+compare_wakeUpTime (const struct list_elem *a, const struct list_elem *b, void *aux UNUSED){
+  struct thread *t_a = list_entry (a, struct thread, elem);
+  struct thread *t_b = list_entry (b, struct thread, elem);
+  return t_a->wakeUpTime < t_b->wakeUpTime;
+}
+
+/**
+ * Suspends the execution of the current thread until the specified wake-up time.
+ *
+ * @param wakeUpTime The time (in ticks or appropriate units) at which the thread should be woken up.
+ *
+ * The function sets the thread's wake-up time, inserts it into the blocked_list in order
+ * (based on wake-up time), and then blocks the thread. The thread will remain blocked until
+ * its wake-up time is reached and it is unblocked by the timer_interrupt.
+ */
+void
+thread_sleep_until(int64_t wakeUpTime)
+{
+  struct thread *t = thread_current ();
+  t->wakeUpTime = wakeUpTime;
+  
+  list_insert_ordered (&blocked_list, &t->elem, compare_wakeUpTime, NULL);
+  thread_block ();
+}
+
+/**
+ * @brief Wakes up threads whose wake-up time has arrived.
+ *
+ * This function iterates through the blocked_list and checks each thread's
+ * wakeUpTime against the current tick count. If a thread's wakeUpTime is
+ * less than or equal to the provided ticks, it is removed from the blocked_list
+ * and unblocked using thread_unblock(). The iteration stops as soon as a thread
+ * with a wakeUpTime greater than the current ticks is encountered, assuming
+ * the list is sorted by wakeUpTime.
+ *
+ * @param ticks The current tick count used to determine which threads to wake up.
+ */
+void
+thread_wakeup(int64_t ticks)
+{
+  struct list_elem *e, *next;
+
+  // if (ticks % (100/10) != 0) return;
+  if (list_empty (&blocked_list)) return;
+
+  /* Select threads of blocked list that must awake and run thread_unblock */
+  for (e = list_begin (&blocked_list); e != list_end (&blocked_list); e = next){
+    struct thread *t = list_entry (e, struct thread, elem);
+    next = list_next (e);
+    if (t->wakeUpTime <= ticks){
+      list_remove (e);
+      thread_unblock (t);
+    }
+    else
+      break;
+  }
 }
 
 /* Returns the name of the running thread. */
