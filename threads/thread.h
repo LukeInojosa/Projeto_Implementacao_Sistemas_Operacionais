@@ -87,7 +87,11 @@ struct thread
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
-    int priority;                       /* Priority. */
+    int priority;                       /* Priority including donations */
+    int base_priority;                  /* Priority not including donations */               
+    struct list donations;              /* List of threads that donated their priority to this thread */
+    struct list_elem donation_elem;     /* List element for when a thread is on the donations list of another */
+    struct lock *need_lock;             /* Lock needed for this thread */
     struct list_elem allelem;           /* List element for all threads list. */
     int64_t wakeUpTime;  
     /* Shared between thread.c and synch.c. */
@@ -125,10 +129,12 @@ const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
+void update_ready_list (struct thread *);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
+void thread_recalculate_priority (void);
 
 int thread_get_priority (void);
 void thread_set_priority (int);

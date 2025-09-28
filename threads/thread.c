@@ -403,6 +403,15 @@ thread_yield (void)
   intr_set_level (old_level);
 }
 
+/* Update ready list. This function will be called when a thread changed its priority due to a donation */
+void
+update_ready_list(struct thread *t) {
+  if (t->status == THREAD_READY) {
+    list_remove(&t->elem); 
+    list_insert_ordered(&ready_list, &t->elem, compare_priority, NULL);
+  }
+}
+
 /* Invoke function 'func' on all threads, passing along 'aux'.
    This function must be called with interrupts off. */
 void
@@ -420,11 +429,27 @@ thread_foreach (thread_action_func *func, void *aux)
     }
 }
 
+/* Recalculates thread priority based on its base priority and top donor priority*/
+
+void thread_recalculate_priority(){
+  struct thread *cur_thread = thread_current();
+  cur_thread->priority = cur_thread->base_priority;
+  struct list_elem *e = list_begin(&cur_thread->donations); 
+  while(e != list_end(&cur_thread->donations)){
+    struct thread *donor = list_entry(e, struct thread, donation_elem);
+    if(donor->priority > cur_thread->priority){
+      cur_thread->priority = donor->priority;
+    }
+    e = list_next(e);
+  }
+}
+
 /* Sets the current thread's priority to NEW_PRIORITY. */
 void
 thread_set_priority (int new_priority) 
 {
-  thread_current ()->priority = new_priority;
+  thread_current ()->base_priority = new_priority;
+  thread_recalculate_priority();
   thread_yield();
 }
 
@@ -552,6 +577,9 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->base_priority = priority;
+  t->need_lock = NULL;
+  list_init(&t->donations);
   t->magic = THREAD_MAGIC;
 
   old_level = intr_disable ();
