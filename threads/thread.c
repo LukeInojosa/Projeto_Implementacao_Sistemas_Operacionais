@@ -299,7 +299,7 @@ thread_sleep_until(int64_t wakeUpTime)
  * @param ticks The current tick count used to determine which threads to wake up.
  */
 void
-thread_wakeup(int64_t ticks)
+thread_wakeup()
 {
   struct list_elem *e, *next;
 
@@ -310,7 +310,7 @@ thread_wakeup(int64_t ticks)
   for (e = list_begin (&blocked_list); e != list_end (&blocked_list); e = next){
     struct thread *t = list_entry (e, struct thread, elem);
     next = list_next (e);
-    if (t->wakeUpTime <= ticks){
+    if (t->wakeUpTime <= timer_ticks()){
       list_remove (e);
       thread_unblock (t);
     }
@@ -629,6 +629,8 @@ thread_schedule_tail (struct thread *prev)
 static void
 schedule (void) 
 {
+  thread_wakeup();
+
   struct thread *cur = running_thread ();
   struct thread *next = next_thread_to_run ();
   struct thread *prev = NULL;
