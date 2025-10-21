@@ -9,10 +9,13 @@
 #include "threads/malloc.h"
 #include "threads/synch.h"
 #include "userprog/pagedir.h"
+#include "userprog/process.h"
 #include "filesys/filesys.h"
 #include "filesys/file.h"
 #include "devices/input.h"
+#include "devices/shutdown.h"
 #include "lib/kernel/stdio.h"
+#include "lib/string.h"
 
 #define STDIN_FILENO 0
 #define STDOUT_FILENO 1
@@ -20,11 +23,16 @@
 #define MAX_FILES 128
 
 static struct lock filesys_lock;
-#include "devices/shutdown.h"
-#include "threads/synch.h"
 
 static void syscall_handler (struct intr_frame *);
 
+/* Process system calls */
+static void halt (void);
+static void exit (int status);
+static pid_t exec (const char *cmd_line);
+static int wait (pid_t pid);
+
+/* File system calls */
 static int allocate_fd (struct file *file);
 static struct file *get_file (int fd);
 static void close_fd (int fd);
@@ -75,6 +83,29 @@ syscall_handler (struct intr_frame *f)
   
   switch (syscall_num)
     {
+    case SYS_HALT:
+      {
+        halt ();
+        break;
+      }
+    case SYS_EXIT:
+      {
+        int status = (int) get_user_word (esp + 1);
+        exit (status);
+        break;
+      }
+    case SYS_EXEC:
+      {
+        const char *cmd_line = (const char *) get_user_word (esp + 1);
+        f->eax = exec (cmd_line);
+        break;
+      }
+    case SYS_WAIT:
+      {
+        pid_t pid = (pid_t) get_user_word (esp + 1);
+        f->eax = wait (pid);
+        break;
+      }
     case SYS_CREATE:
       {
         const char *file = (const char *) get_user_word (esp + 1);
@@ -544,48 +575,62 @@ void
 syscall_close_all_files (void)
 {
   close_all_files ();
-void
-halt (void){
-  shutdown_power_off();
 }
 
-void
-exit (int status){
+static void
+halt (void)
+{
+  shutdown_power_off ();
+}
+
+static void
+exit (int status)
+{
   struct thread *t = thread_current();
   t->exit_status = status;
   printf("%s: exit(%d)\n", t->name, status);
 
-  if (t->self_child != NULL) {
-    t->self_child->exit_status = status;
-    t->self_child->exited = true;
-    sema_up(&t->self_child->exit_sema);
-  }
+  if (t->self_child != NULL) 
+    {
+      t->self_child->exit_status = status;
+      t->self_child->exited = true;
+      sema_up(&t->self_child->exit_sema);
+    }
 
   thread_exit();
 }
 
-pid_t 
-exec (const char* cmd_line){
-  if (cmd_line == NULL) {
-    return -1;
-  }
+static pid_t 
+exec (const char* cmd_line)
+{
+  if (cmd_line == NULL) 
+    {
+      return -1;
+    }
+    
+  validate_user_string (cmd_line);
+  
   char *kpage = palloc_get_page (0);
-  if (kpage == NULL) {
-    return -1;
-  }
+  if (kpage == NULL) 
+    {
+      return -1;
+    }
+    
   strlcpy (kpage, cmd_line, PGSIZE);
 
   pid_t pid = process_execute (kpage);
 
-  if (pid == TID_ERROR) {
-    palloc_free_page (kpage);
-    return -1;
-  }
+  if (pid == TID_ERROR) 
+    {
+      palloc_free_page (kpage);
+      return -1;
+    }
 
   return pid;
 }
 
-int 
-wait (pid_t pid){
+static int 
+wait (pid_t pid)
+{
   return process_wait(pid);
 }
