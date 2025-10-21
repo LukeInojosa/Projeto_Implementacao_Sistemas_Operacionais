@@ -96,6 +96,11 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    
+    /* File descriptor management */
+    struct file **fd_table;             /* Array of open files */
+    int fd_count;                       /* Number of file descriptors in use */
+    int fd_capacity;                    /* Capacity of fd_table */
 #endif
 
     /* Owned by thread.c. */
