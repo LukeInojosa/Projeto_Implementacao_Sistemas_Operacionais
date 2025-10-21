@@ -20,16 +20,17 @@ cd Projeto_Implementacao_Sistemas_Operacionais
 ```
 ## Adicionando PintOS ao Path
 
+Dentro do diretório do projeto, entre na pasta utils e adicione pintos ao path:
+
 ```bash
 cd utils
 echo "PATH=\$PATH:$(pwd)" | sudo tee -a /home/$(whoami)/.bashrc
 ```
 ## Compilando o PintOS
 
-Acesse o diretório do projeto e execute:
+No diretório do projeto "/Projeto_Implementacao_Sistemas_Operacionais" execute:
 
 ```bash
-cd pintos/src
 make clean
 make
 ```
@@ -39,11 +40,18 @@ make
 Para executar um teste ou o kernel:
 
 ```bash
-cd pintos/src/threads/build
+cd threads/build
 pintos --qemu --gdb -- run alarm-multiple
 ```
 
 Substitua `alarm-multiple` pelo teste desejado.
+
+Para rodar os testes:
+
+```bash
+cd threads/build
+make check
+```
 
 ## Debugando com GDB
 
