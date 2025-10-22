@@ -18,7 +18,7 @@ struct load_wait{
   char *cmd_line;
   struct semaphore sema;
   bool load_success;
-  struct child_rec *child;
+  struct child_info *child;
 };
 
 tid_t process_execute (const char *file_name);

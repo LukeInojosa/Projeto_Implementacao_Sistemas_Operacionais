@@ -32,7 +32,6 @@ static bool load (const char *cmdline, void (**eip) (void), void **esp);
 tid_t
 process_execute (const char *cmdline) 
 {
-  char *cmd_copy;
   tid_t tid;
   char *thread_name, *save_ptr;
 
@@ -282,9 +281,9 @@ load (const char *cmdline, void (**eip) (void), void **esp)
   int i;
   char *file_name_without_spaces,*save_ptr;
 
-  char file_name[14];
+  char file_name[16];
   memcpy (file_name, cmdline, sizeof file_name);
-  file_name[13] = '\0';
+  file_name[15] = '\0';
   file_name_without_spaces = strtok_r (file_name, " ", &save_ptr);
 
   /* Allocate and activate page directory. */
@@ -498,57 +497,73 @@ load_segment (struct file *file, off_t ofs, uint8_t *upage,
 
 /* Create a minimal stack by mapping a zeroed page at the top of
    user virtual memory. */
-static bool
+
+bool
 setup_stack (void **esp, const char *cmdline) 
 {
   uint8_t *kpage;
   bool success = false;
   char *token, *save_ptr;
   int argc = 0;
-  int len = 0;
-  int word_align = 0;
-  char *argv[128]; // Assuming a maximum of 128 arguments
+  char *argv[128]; // até 128 args
+  char *tokens[128];
 
   kpage = palloc_get_page (PAL_USER | PAL_ZERO);
-  if (kpage != NULL) 
-    {
-      success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
-      if (success){
-        *esp = PHYS_BASE;
-        // Push arguments onto stack in reverse order
-        for (token = strtok_r ((char *)cmdline, " ", &save_ptr); token != NULL; token = strtok_r (NULL, " ", &save_ptr)) {
-          len = strlen(token) + 1;
-          *esp -= len;
-          memcpy(*esp, token, len);
-          argv[argc] = *esp;
-          argc++;
-        }
-        argv[argc] = NULL; // Null-terminate the argv array
-        // Word align
-        word_align = (4 - ((PHYS_BASE - *esp) % 4)) % 4;
-        *esp -= word_align;
-        memset(*esp, 0, word_align);
-        // Push argv pointers
-        for (int i = argc; i >= 0; i--) {
-            *esp -= sizeof(char *);
-            memcpy(*esp, &argv[i], sizeof(char *));
-        }
-        // Push argv
-        char **argv_start = *esp;
-        *esp -= sizeof(char **);
-        memcpy(*esp, &argv_start, sizeof(char **));
-        // Push argc
-        *esp -= sizeof(int);
-        memcpy(*esp, &argc, sizeof(int));
-        // Push fake return address
-        *esp -= sizeof(void *);
-        memset(*esp, 0, sizeof(void *));
+  if (kpage == NULL)
+    return false;
 
-      hex_dump((uintptr_t)*esp, *esp, 128, true);
-      } else
-        palloc_free_page (kpage);
-    }
-  return success;
+  success = install_page (((uint8_t *) PHYS_BASE) - PGSIZE, kpage, true);
+  if (!success) {
+    palloc_free_page (kpage);
+    return false;
+  }
+
+  *esp = PHYS_BASE;
+
+  // 1. Tokeniza
+  for (token = strtok_r ((char *)cmdline, " ", &save_ptr);
+       token != NULL;
+       token = strtok_r (NULL, " ", &save_ptr))
+    tokens[argc++] = token;
+
+  // 2. Copia strings em ordem inversa
+  for (int i = argc - 1; i >= 0; i--) {
+    size_t len = strlen(tokens[i]) + 1;
+    *esp -= len;
+    memcpy(*esp, tokens[i], len);
+    argv[i] = *esp;
+  }
+
+  // 3. Alinha para 4 bytes
+  int align = ((uintptr_t)*esp) % 4;
+  if (align != 0) {
+    *esp -= align;
+    memset(*esp, 0, align);
+  }
+
+  // 4. Empilha ponteiros (argv[i])
+  *esp -= sizeof(char *);
+  memset(*esp, 0, sizeof(char *)); // argv[argc] = NULL
+  for (int i = argc - 1; i >= 0; i--) {
+    *esp -= sizeof(char *);
+    memcpy(*esp, &argv[i], sizeof(char *));
+  }
+
+  // 5. Empilha argv, argc, retorno falso
+  char **argv_addr = (char **)*esp;
+  *esp -= sizeof(char **);
+  memcpy(*esp, &argv_addr, sizeof(char **));
+
+  *esp -= sizeof(int);
+  memcpy(*esp, &argc, sizeof(int));
+
+  *esp -= sizeof(void *);
+  memset(*esp, 0, sizeof(void *));
+
+  // hex_dump opcional
+  // hex_dump((uintptr_t)*esp, *esp, 128, true);
+
+  return true;
 }
 
 /* Adds a mapping from user virtual address UPAGE to kernel

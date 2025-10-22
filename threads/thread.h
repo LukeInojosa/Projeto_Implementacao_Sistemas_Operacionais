@@ -105,7 +105,7 @@ struct thread
     int fd_capacity;                    /* Capacity of fd_table */
     int exit_status;                    /* Exit status. */
     struct list children;               /* Children of this process */
-    struct child_rec *self_child;     /* Pointer for its element on parents children list */
+    struct child_info *self_child;     /* Pointer for its element on parent children list */
 #endif
 
     /* Owned by thread.c. */

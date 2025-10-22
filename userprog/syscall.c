@@ -29,8 +29,8 @@ static void syscall_handler (struct intr_frame *);
 /* Process system calls */
 static void halt (void);
 static void exit (int status);
-static pid_t exec (const char *cmd_line);
-static int wait (pid_t pid);
+static tid_t exec (const char *cmd_line);
+static int wait (tid_t pid);
 
 /* File system calls */
 static int allocate_fd (struct file *file);
@@ -102,7 +102,7 @@ syscall_handler (struct intr_frame *f)
       }
     case SYS_WAIT:
       {
-        pid_t pid = (pid_t) get_user_word (esp + 1);
+        tid_t pid = (tid_t) get_user_word (esp + 1);
         f->eax = wait (pid);
         break;
       }
@@ -600,7 +600,7 @@ exit (int status)
   thread_exit();
 }
 
-static pid_t 
+static tid_t 
 exec (const char* cmd_line)
 {
   if (cmd_line == NULL) 
@@ -618,7 +618,7 @@ exec (const char* cmd_line)
     
   strlcpy (kpage, cmd_line, PGSIZE);
 
-  pid_t pid = process_execute (kpage);
+  tid_t pid = process_execute (kpage);
 
   if (pid == TID_ERROR) 
     {
@@ -630,7 +630,7 @@ exec (const char* cmd_line)
 }
 
 static int 
-wait (pid_t pid)
+wait (tid_t pid)
 {
   return process_wait(pid);
 }
