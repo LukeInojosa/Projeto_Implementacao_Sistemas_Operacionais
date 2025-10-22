@@ -385,13 +385,11 @@ load (const char *cmdline, void (**eip) (void), void **esp)
   /* We arrive here whether the load is successful or not. */
   if (success)
     {
-      /* Keep the executable file open and deny writes to it */
       file_deny_write (file);
       thread_current ()->executable_file = file;
     }
   else
     {
-      /* Close the file if loading failed */
       file_close (file);
     }
   return success;
@@ -530,13 +528,11 @@ setup_stack (void **esp, const char *cmdline)
 
   *esp = PHYS_BASE;
 
-  // 1. Tokeniza
   for (token = strtok_r ((char *)cmdline, " ", &save_ptr);
        token != NULL;
        token = strtok_r (NULL, " ", &save_ptr))
     tokens[argc++] = token;
 
-  // 2. Copia strings em ordem inversa
   for (int i = argc - 1; i >= 0; i--) {
     size_t len = strlen(tokens[i]) + 1;
     *esp -= len;
@@ -544,22 +540,19 @@ setup_stack (void **esp, const char *cmdline)
     argv[i] = *esp;
   }
 
-  // 3. Alinha para 4 bytes
   int align = ((uintptr_t)*esp) % 4;
   if (align != 0) {
     *esp -= align;
     memset(*esp, 0, align);
   }
 
-  // 4. Empilha ponteiros (argv[i])
   *esp -= sizeof(char *);
-  memset(*esp, 0, sizeof(char *)); // argv[argc] = NULL
+  memset(*esp, 0, sizeof(char *));
   for (int i = argc - 1; i >= 0; i--) {
     *esp -= sizeof(char *);
     memcpy(*esp, &argv[i], sizeof(char *));
   }
 
-  // 5. Empilha argv, argc, retorno falso
   char **argv_addr = (char **)*esp;
   *esp -= sizeof(char **);
   memcpy(*esp, &argv_addr, sizeof(char **));

@@ -542,16 +542,15 @@ init_thread (struct thread *t, const char *name, int priority)
   t->magic = THREAD_MAGIC;
 
 #ifdef USERPROG
+  list_init(&t->children);
+  t->self_child = NULL;
+  t->exit_status = -1;
   t->fd_table = NULL;
   t->fd_count = 0;
   t->fd_capacity = 0;
   t->executable_file = NULL;
 #endif
 
-  // User Program
-  list_init(&t->children);
-  t->self_child = NULL;
-  t->exit_status = -1;
   //
   old_level = intr_disable ();
   list_push_back (&all_list, &t->allelem);

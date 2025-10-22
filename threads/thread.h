@@ -106,7 +106,7 @@ struct thread
     int exit_status;                    /* Exit status. */
     struct list children;               /* Children of this process */
     struct child_info *self_child;     /* Pointer for its element on parent children list */
-    struct file *executable_file;      /* Process's executable file */
+    struct file *executable_file;      /* Process executable file */
 #endif
 
     /* Owned by thread.c. */

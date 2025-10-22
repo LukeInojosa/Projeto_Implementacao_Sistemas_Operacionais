@@ -149,13 +149,11 @@ page_fault (struct intr_frame *f)
   write = (f->error_code & PF_W) != 0;
   user = (f->error_code & PF_U) != 0;
 
-  if (!user) 
-    {
-      f->eax = 0xffffffff;
-      return;
-    }
+  if (!user) {
+    f->eax = 0xffffffff;
+    return;
+  }
 
-  /* For user page faults, terminate the process with exit code -1 */
   syscall_exit (-1);
 }
 
