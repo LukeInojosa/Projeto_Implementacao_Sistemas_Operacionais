@@ -80,6 +80,8 @@ typedef int tid_t;
    only because they are mutually exclusive: only a thread in the
    ready state is on the run queue, whereas only a thread in the
    blocked state is on a semaphore wait list. */
+
+struct child_info;
 struct thread
   {
     /* Owned by thread.c. */
@@ -87,11 +89,7 @@ struct thread
     enum thread_status status;          /* Thread state. */
     char name[16];                      /* Name (for debugging purposes). */
     uint8_t *stack;                     /* Saved stack pointer. */
-    int priority;                       /* Priority including donations */
-    int base_priority;                  /* Priority not including donations */               
-    struct list donations;              /* List of threads that donated their priority to this thread */
-    struct list_elem donation_elem;     /* List element for when a thread is on the donations list of another */
-    struct lock *need_lock;             /* Lock needed for this thread */
+    int priority;                       /* Priority. */
     struct list_elem allelem;           /* List element for all threads list. */
     int64_t wakeUpTime;  
     /* Shared between thread.c and synch.c. */
@@ -100,6 +98,15 @@ struct thread
 #ifdef USERPROG
     /* Owned by userprog/process.c. */
     uint32_t *pagedir;                  /* Page directory. */
+    
+    /* File descriptor management */
+    struct file **fd_table;             /* Array of open files */
+    int fd_count;                       /* Number of file descriptors in use */
+    int fd_capacity;                    /* Capacity of fd_table */
+    int exit_status;                    /* Exit status. */
+    struct list children;               /* Children of this process */
+    struct child_info *self_child;     /* Pointer for its element on parent children list */
+    struct file *executable_file;      /* Process's executable file */
 #endif
 
     /* Owned by thread.c. */
@@ -129,12 +136,10 @@ const char *thread_name (void);
 
 void thread_exit (void) NO_RETURN;
 void thread_yield (void);
-void update_ready_list (struct thread *);
 
 /* Performs some operation on thread t, given auxiliary data AUX. */
 typedef void thread_action_func (struct thread *t, void *aux);
 void thread_foreach (thread_action_func *, void *);
-void thread_recalculate_priority (void);
 
 int thread_get_priority (void);
 void thread_set_priority (int);
