@@ -8,6 +8,7 @@
 #include "threads/vaddr.h"
 #include "threads/malloc.h"
 #include "threads/synch.h"
+#include "threads/palloc.h"            // <— adicionado
 #include "userprog/pagedir.h"
 #include "userprog/process.h"
 #include "filesys/filesys.h"
@@ -72,12 +73,12 @@ syscall_init (void)
 static void
 syscall_handler (struct intr_frame *f) 
 {
-  // get the system call number from user stack the stack pointer points to the system call number.
+  /* pegar o número da syscall da pilha do usuário */
   uint32_t *esp = (uint32_t *) f->esp;
-  
-  // validate that we can read the system call number
+
+  /* VALIDAR esp — em caso inválido: exit(-1) */
   if (!is_valid_user_addr (esp))
-    thread_exit ();
+    exit (-1);                                   // ← trocado de thread_exit() p/ exit(-1)
     
   uint32_t syscall_num = get_user_word (esp);
   
@@ -167,8 +168,8 @@ syscall_handler (struct intr_frame *f)
         break;
       }
     default:
-      printf ("system call number: %d\n", syscall_num);
-      thread_exit ();
+      /* número de syscall inválido -> encerrar com -1 */
+      exit (-1);                                  // ← antes fazia thread_exit()
     }
 }
 
@@ -176,11 +177,10 @@ static bool
 is_valid_user_addr (const void *uaddr)
 {
   struct thread *cur = thread_current ();
-  
   if (!is_user_vaddr (uaddr))
     return false;
-    
-  // check if address is mapped
+
+  /* checa se mapeado */
   return pagedir_get_page (cur->pagedir, uaddr) != NULL;
 }
 
@@ -206,44 +206,40 @@ static uint32_t
 get_user_word (const void *uaddr)
 {
   if (!is_valid_user_addr (uaddr) ||
-      !is_valid_user_addr ((char *) uaddr + 3))
+      !is_valid_user_addr ((const char *) uaddr + 3))
     {
-      thread_exit ();
+      exit (-1);                                  // ← era thread_exit()
     }
-  
-  return *(uint32_t *) uaddr;
+  return *(const uint32_t *) uaddr;
 }
 
 static void
 validate_user_string (const char *str)
 {
   if (str == NULL || !is_user_vaddr (str))
-    thread_exit ();
+    exit (-1);                                    // ← era thread_exit ()
     
   const char *p = str;
   while (is_valid_user_addr (p))
     {
       if (*p == '\0')
-        return; /* Valid string found */
+        return; /* string OK */
       p++;
     }
-  
-  thread_exit ();
+  exit (-1);                                      // ← era thread_exit ()
 }
 
 static void
 validate_user_buffer (const void *buffer, size_t size)
 {
   if (buffer == NULL)
-    thread_exit ();
+    exit (-1);                                    // ← era thread_exit ()
     
-  // check that the entire buffer is in valid user memory
   const char *buf = (const char *) buffer;
-  size_t i;
-  for (i = 0; i < size; i++)
+  for (size_t i = 0; i < size; i++)
     {
       if (!is_valid_user_addr (buf + i))
-        thread_exit ();
+        exit (-1);                                // ← era thread_exit ()
     }
 }
 
@@ -251,11 +247,10 @@ static char *
 copy_user_string (const char *ustr)
 {
   if (ustr == NULL || !is_user_vaddr (ustr))
-    return NULL;
-    
-  // validate the string and find its length
+    return NULL;      /* inválida -> será tratada por validate_user_string */
+
   validate_user_string (ustr);
-  
+
   size_t len = 0;
   const char *p = ustr;
   while (*p != '\0')
@@ -263,21 +258,17 @@ copy_user_string (const char *ustr)
       len++;
       p++;
     }
-  
-  // allocate kernel memory and copy the string
+
   char *kstr = malloc (len + 1);
   if (kstr == NULL)
-    return NULL;
+    return NULL;      /* falha de kernel malloc -> deixe quem chamou tratar */
     
-  size_t i;
-  for (i = 0; i <= len; i++)
+  for (size_t i = 0; i <= len; i++)
     {
       kstr[i] = ustr[i];
     }
-  
   return kstr;
 }
-
 
 static int
 allocate_fd (struct file *file)
@@ -292,13 +283,11 @@ allocate_fd (struct file *file)
       cur->fd_capacity = INITIAL_FD_CAPACITY;
       cur->fd_count = 2;
       
-      int i;
-      for (i = 0; i < cur->fd_capacity; i++)
+      for (int i = 0; i < cur->fd_capacity; i++)
         cur->fd_table[i] = NULL;
     }
   
-  int fd;
-  for (fd = 2; fd < cur->fd_capacity; fd++)
+  for (int fd = 2; fd < cur->fd_capacity; fd++)
     {
       if (cur->fd_table[fd] == NULL)
         {
@@ -309,7 +298,6 @@ allocate_fd (struct file *file)
         }
     }
   
-  // expand the table
   if (cur->fd_capacity >= MAX_FILES)
     return -1;
     
@@ -322,12 +310,11 @@ allocate_fd (struct file *file)
   if (new_table == NULL)
     return -1;
     
-  int i;
-  for (i = cur->fd_capacity; i < new_capacity; i++)
+  for (int i = cur->fd_capacity; i < new_capacity; i++)
     new_table[i] = NULL;
     
   cur->fd_table = new_table;
-  fd = cur->fd_capacity;
+  int fd = cur->fd_capacity;
   cur->fd_capacity = new_capacity;
   cur->fd_table[fd] = file;
   cur->fd_count = fd + 1;
@@ -369,8 +356,7 @@ close_all_files (void)
   if (cur->fd_table == NULL)
     return;
     
-  int i;
-  for (i = 2; i < cur->fd_capacity; i++)
+  for (int i = 2; i < cur->fd_capacity; i++)
     {
       if (cur->fd_table[i] != NULL)
         {
@@ -385,18 +371,17 @@ close_all_files (void)
   cur->fd_count = 0;
 }
 
-
 static bool
 sys_create (const char *file, unsigned initial_size)
 {
   if (file == NULL)
-    thread_exit ();
-    
+    exit (-1);                                    // ← invalidação de ponteiro
+
   validate_user_string (file);
   
   char *kfile = copy_user_string (file);
   if (kfile == NULL)
-    thread_exit ();
+    return false;                                  // ← falha de malloc no kernel
   
   lock_acquire (&filesys_lock);
   bool success = filesys_create (kfile, initial_size);
@@ -410,13 +395,13 @@ static bool
 sys_remove (const char *file)
 {
   if (file == NULL)
-    thread_exit ();
-    
+    exit (-1);
+
   validate_user_string (file);
   
   char *kfile = copy_user_string (file);
   if (kfile == NULL)
-    thread_exit ();
+    return false;
   
   lock_acquire (&filesys_lock);
   bool success = filesys_remove (kfile);
@@ -430,13 +415,13 @@ static int
 sys_open (const char *file)
 {
   if (file == NULL)
-    thread_exit ();
-    
+    exit (-1);
+
   validate_user_string (file);
   
   char *kfile = copy_user_string (file);
   if (kfile == NULL)
-    thread_exit ();
+    return -1;
   
   lock_acquire (&filesys_lock);
   struct file *f = filesys_open (kfile);
@@ -453,6 +438,11 @@ sys_open (const char *file)
       file_close (f);
       return -1;
     }
+
+  /* (opcional p/ outros testes) negar escrita em arquivo executando */
+  // if (thread_current()->exec_file == f) {
+  //   file_deny_write (f);
+  // }
   
   return fd;
 }
@@ -475,16 +465,14 @@ static int
 sys_read (int fd, void *buffer, unsigned size)
 {
   if (buffer == NULL)
-    thread_exit ();
-    
+    exit (-1);
+
   validate_user_buffer (buffer, size);
   
-  // special case: reading from stdin
   if (fd == STDIN_FILENO)
     {
       uint8_t *buf = (uint8_t *) buffer;
-      unsigned i;
-      for (i = 0; i < size; i++)
+      for (unsigned i = 0; i < size; i++)
         {
           buf[i] = input_getc ();
         }
@@ -506,8 +494,8 @@ static int
 sys_write (int fd, const void *buffer, unsigned size)
 {
   if (buffer == NULL)
-    thread_exit ();
-    
+    exit (-1);
+
   validate_user_buffer (buffer, size);
   
   if (fd == STDOUT_FILENO)
@@ -605,7 +593,8 @@ exec (const char* cmd_line)
 {
   if (cmd_line == NULL) 
     {
-      return -1;
+      /* ponteiro nulo passado pelo usuário: tratar como erro fatal */
+      exit (-1);
     }
     
   validate_user_string (cmd_line);
@@ -613,7 +602,7 @@ exec (const char* cmd_line)
   char *kpage = palloc_get_page (0);
   if (kpage == NULL) 
     {
-      return -1;
+      return -1;  /* falha de kernel allocation */
     }
     
   strlcpy (kpage, cmd_line, PGSIZE);
