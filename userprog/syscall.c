@@ -572,6 +572,12 @@ syscall_close_all_files (void)
   close_all_files ();
 }
 
+void
+syscall_exit (int status)
+{
+  exit (status);
+}
+
 static void
 halt (void)
 {
