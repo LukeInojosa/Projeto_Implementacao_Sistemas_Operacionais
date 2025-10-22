@@ -353,6 +353,13 @@ close_all_files (void)
 {
   struct thread *cur = thread_current ();
   
+  /* Close the executable file if it exists */
+  if (cur->executable_file != NULL)
+    {
+      file_close (cur->executable_file);
+      cur->executable_file = NULL;
+    }
+  
   if (cur->fd_table == NULL)
     return;
     

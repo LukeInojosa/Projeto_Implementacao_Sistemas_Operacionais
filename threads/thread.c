@@ -545,6 +545,7 @@ init_thread (struct thread *t, const char *name, int priority)
   t->fd_table = NULL;
   t->fd_count = 0;
   t->fd_capacity = 0;
+  t->executable_file = NULL;
 #endif
 
   // User Program

@@ -383,7 +383,17 @@ load (const char *cmdline, void (**eip) (void), void **esp)
 
  done:
   /* We arrive here whether the load is successful or not. */
-  file_close (file);
+  if (success)
+    {
+      /* Keep the executable file open and deny writes to it */
+      file_deny_write (file);
+      thread_current ()->executable_file = file;
+    }
+  else
+    {
+      /* Close the file if loading failed */
+      file_close (file);
+    }
   return success;
 }
 
